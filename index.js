@@ -1,6 +1,6 @@
 'use strict';
 const electron = require('electron');
-require('electron-reload')([ 'output', 'index.html' ]);
+require('electron-reload')([ 'output', 'index.html', 'index.css' ]);
 
 const app = electron.app;
 
@@ -18,8 +18,8 @@ function onClosed() {
 
 function createMainWindow() {
 	const win = new electron.BrowserWindow({
-		width: 600,
-		height: 400
+		width: 1000,
+		height: 800
 	});
 
 	win.loadURL(`file://${__dirname}/index.html`);
