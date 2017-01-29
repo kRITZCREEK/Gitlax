@@ -25,3 +25,14 @@ header h1 {
 	margin: 0;
 	padding: 0;
 }
+
+.button-small {
+  font-size: 85%;
+}
+
+.repo-name {
+  padding-left: 15px;
+  padding-top: 10px;
+
+  font-size: 90%;
+}

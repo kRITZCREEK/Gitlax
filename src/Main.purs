@@ -6,9 +6,8 @@ import React.DOM as RD
 import React.DOM.Props as RP
 import ReactDOM as RDOM
 import Thermite as T
-import Control.Monad.Aff (Aff, launchAff)
 import Control.Monad.Aff.Class (class MonadAff, liftAff)
-import Control.Monad.Aff.Console (CONSOLE, logShow)
+import Control.Monad.Aff.Console (CONSOLE)
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Exception (EXCEPTION)
 import Control.Monad.Trans.Class (lift)
@@ -18,8 +17,7 @@ import DOM.HTML.Types (htmlDocumentToParentNode) as DOM
 import DOM.HTML.Window (document) as DOM
 import DOM.Node.ParentNode (querySelector) as DOM
 import Data.Argonaut.Core (Json)
-import Data.Array (singleton)
-import Data.Maybe (fromJust)
+import Data.Maybe (Maybe(..), fromJust, maybe)
 import Data.Newtype (class Newtype, over, unwrap)
 import Data.Nullable (toMaybe)
 import Debug.Trace (traceShowA)
@@ -30,30 +28,49 @@ import Unsafe.Coerce (unsafeCoerce)
 
 newtype GxState = GxState
                   { repos :: Array Repository
+                  , selected :: Maybe Repository
                   }
 
 derive instance newtypeState :: Newtype GxState _
 
 emptyState :: GxState
-emptyState = GxState {repos: []}
+emptyState = GxState {repos: [], selected: Nothing}
 
-data GxAction = Refresh
+data GxAction
+  = Refresh
+  | SelectRepo Repository
 
 gitlaxComponent :: forall eff. T.Spec (ajax :: AJAX | eff) GxState Unit GxAction
 gitlaxComponent =
   T.simpleSpec performAction render
   where
     render :: T.Render GxState Unit GxAction
-    render dispatch _ (GxState {repos}) _ =
+    render dispatch _ (GxState {repos, selected}) _ =
       [ RD.div
         [RP.className "container"]
         [ RD.header'
-          [RD.h1' [RD.text "Gitlax"]]
+          [RD.h1' [RD.text (maybe "Gitlax" show selected)]]
         , RD.section [RP.className "main"]
-          [ RD.button
-            [RP.onClick (\_ -> dispatch Refresh)]
-            [RD.text "Refresh Repositories"]
-          , RD.ul' (map (\repo -> RD.li' [RD.text (show repo)]) repos)
+          [ RD.div
+              [RP.className "pure-g"]
+              [ RD.div
+                [RP.className "pure-u-1-5"]
+                ((repos <#> (\repo ->
+                              RD.div
+                                [ RP.className "repo-name"
+                                , RP.onClick \_ -> dispatch (SelectRepo repo)
+                                ]
+                                [RD.text (repo # unwrap # _.name)]))
+                 <> [ RD.button
+                        [ RP.onClick (\_ -> dispatch Refresh)
+                        , RP.className "pure-button button-small"
+                        ]
+                        [RD.text "Refresh Repositories"]
+                    ])
+              , RD.div
+                [RP.className "pure-u-1-5"]
+                [RD.text ""]
+              ]
           ]
         , RD.footer' []
         ]
@@ -64,6 +81,8 @@ gitlaxComponent =
         repos <- lift fetchRepos
         traceShowA repos
         T.writeState (_ {repos = repos} `over GxState` state)
+      SelectRepo repo -> do
+        T.writeState (_ {selected = Just repo} `over GxState` state)
 
 newtype Repository = Repository
                      { url :: String
@@ -75,7 +94,6 @@ derive instance newtypeRepo :: Newtype Repository _
 
 instance showRepo :: Show Repository where
   show (Repository r) = "Repository: " <> r.name
-
 
 parseRepos :: Json -> Array Repository
 parseRepos = unsafeCoerce
@@ -96,7 +114,7 @@ getGithub url = do
 
 main :: forall e. Eff ( err :: EXCEPTION , ajax :: AJAX , console :: CONSOLE , dom :: DOM | e) Unit
 main = void do
-  launchAff $ fetchRepos >>= map (unwrap >>> _.name) >>> logShow
+  -- launchAff $ fetchRepos >>= map (unwrap >>> _.name) >>> logShow
   let component = T.createClass gitlaxComponent emptyState
   document <- DOM.window >>= DOM.document
   container <- unsafePartial
